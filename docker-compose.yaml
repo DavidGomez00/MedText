@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  # 1. Servicio de base de datos de grafos Neo4j
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j-graphrag
+    restart: always
+    ports:
+      - "7474:7474" # Interfaz HTTP/Browser
+      - "7687:7687" # Puerto Bolt (para comunicación con el cliente)
+    volumes:
+      - ./data/neo4j:/data # Persistencia de los datos del grafo
+      - ./conf/neo4j:/conf # Configuración específica
+    environment:
+      - NEO4J_AUTH=neo4j/
