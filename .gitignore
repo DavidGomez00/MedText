@@ -1,0 +1,5 @@
+# Ignore environment and config files
+.env
+.envrc
+*.data
+*.conf
