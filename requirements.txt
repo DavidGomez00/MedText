@@ -1,0 +1,6 @@
+neo4j
+python-dotenv
+requests
+pdfplumber
+tiktoken
+openai

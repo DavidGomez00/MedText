@@ -1,6 +1,5 @@
-from langchain_ollama import OllamaLLM
 import os
-import dotenv
+''''Try Ollama API.'''
 import requests
 
 messages = [
@@ -9,7 +8,7 @@ messages = [
 ]
 
 answer = requests.post(
-    url=f"http://176.98.223.168:11434/api/chat",
+    url=f"{os.environ.get('OLLAMA_API_URL')}/api/chat",
     json={
         "model": "llama3.1:8b",
         "messages": messages,

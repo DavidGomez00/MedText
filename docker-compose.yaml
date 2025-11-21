@@ -1,16 +1,43 @@
+# This file orchestrates the development environment. It defines
+# two resources: Neo4j and Python.
+
 version: '3.8'
 
 services:
-  # 1. Servicio de base de datos de grafos Neo4j
   neo4j:
     image: neo4j:5-community
     container_name: neo4j-graphrag
     restart: always
     ports:
-      - "7474:7474" # Interfaz HTTP/Browser
-      - "7687:7687" # Puerto Bolt (para comunicación con el cliente)
+      - "7474:7474" # HTTP/Browser interface
+      - "7687:7687" # Bolt port (for client communication)
     volumes:
-      - ./data/neo4j:/data # Persistencia de los datos del grafo
-      - ./conf/neo4j:/conf # Configuración específica
+      - ./data/neo4j:/data # Graph data persistence
+      - ./conf/neo4j:/conf # Specific configuration
     environment:
-      - NEO4J_AUTH=neo4j/
+      # Use environment variables for Neo4j credentials.
+      # These should be defined in a .env file or your shell environment.
+      - NEO4J_USERNAME=${NEO4J_USERNAME:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
+      - NEO4J_PLUGINS=apoc,graph-data-science
+
+  python:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medtext-python-dev
+    depends_on:
+      - neo4j
+    ports:
+      - "8000:8000" # Example port for a web server, adjust if needed
+    volumes:
+      - .:/app # Mount the current directory to /app in the container
+    environment:
+      # Neo4j connection details
+      # Use the service name 'neo4j' to connect to the Neo4j container
+      - NEO4J_URI=neo4j://neo4j:7687
+      - NEO4J_USERNAME=${NEO4J_USERNAME:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
+      # Ollama API URL. 'host.docker.internal' allows access to the host machine from the container.
+      # Adjust if Ollama is running in another container or on a different host.
+      - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
