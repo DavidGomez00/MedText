@@ -1,6 +1,3 @@
-from langchain_ollama import OllamaLLM
-import os
-import dotenv
 import requests
 
 messages = [

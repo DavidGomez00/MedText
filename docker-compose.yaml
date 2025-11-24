@@ -13,4 +13,4 @@ services:
       - ./data/neo4j:/data # Persistencia de los datos del grafo
       - ./conf/neo4j:/conf # Configuración específica
     environment:
-      - NEO4J_AUTH=neo4j/
+      - NEO4J_AUTH=neo4j/password
