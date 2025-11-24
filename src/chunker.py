@@ -2,7 +2,7 @@
 Then, stores the embeddings in a Neo4j database.'''
 
 import pdfplumber
-from utils import chunk_text
+from src.utils import chunk_text
 import os
 from neo4j import GraphDatabase
 import requests
@@ -39,6 +39,19 @@ driver = GraphDatabase.driver(
 driver.execute_query('''CREATE VECTOR INDEX pdf IF NOT EXISTS
                      FOR (c:Chunk)
                      ON c.embedding''')
+
+# Add to neo4j
+cypher_query = '''
+WITH $chunks as chunks, range(0, size($chunks)) AS index
+UNWIND index AS i
+WITH i, chunks[i] AS chunk, $embeddings[i] AS embedding
+MERGE (c:Chunk {index: i})
+SET c.text = chunk, c.embedding = embedding
+'''
+
+driver.execute_query(cypher_query, chunks=chunks, embeddings=embeddings)
+
+
 
 
 
