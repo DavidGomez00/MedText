@@ -1,4 +1,5 @@
 # Ignore environment and config files
+__pycache__/
 .env
 *.data
 *.conf
