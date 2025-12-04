@@ -1,0 +1,98 @@
+{
+    "name": "IBC",
+    "process_id": "IBC_main_process",
+    "description": "This is the main process for managing Inflammatory Breast Cancer (IBC) treatment planning.",
+    "required": [],
+    "obtained": [],
+    "next_step_id": [],
+    "next_step_criteria": null,
+    "processes": [
+        {
+            "process_id": "00",
+            "name":"Diagnosis",
+            "description":"This process obtains the patient's diagnosis.",
+            "required": ["T", "N", "M", "prefix"],
+            "obtained": ["Diagnosis", "C_Systemic_Therapy"],
+            "next_step_id":["01", "02"],
+            "processes": [],
+            "next_step_criteria": {
+                "01": {
+                    "C_Systemic_Therapy": "True"
+                },
+                "02": {
+                    "C_Systemic_Therapy": "False"
+                }
+            }
+        },
+        {
+            "process_id": "01",
+            "name":"Additional Workup for Systemic Therapy Decision",
+            "description":"This branch determines if the patient requires systemic therapy based on diagnosis.",
+            "required": ["Diagnosis"],
+            "obtained": ["HER2, ER", "Operable"],
+            "next_step_id":["02", "03"],
+            "processes": [],
+            "next_step_criteria": {
+                "02": {
+                    "Operable": "True"
+                },
+                "03": {
+                    "Operable": "False"
+                }
+            }
+        },
+        {
+            "process_id": "02",
+            "name":"Surgery",
+            "description":"This process plans the additional workup for the patient.",
+            "required": [],
+            "obtained": ["HER2", "ER", "Mastectomy", "BCS", "T", "N", "M", "prefix"],
+            "next_step_id":["05"],
+            "processes": [],
+            "next_step_criteria": null
+        },
+        {
+            "process_id": "03",
+            "name":"Systemic Therapy",
+            "description":"Determines which systemic therapy is appropriate for the patient.",
+            "required": ["Diagnosis", "T", "N", "M", "prefix", "HER2", "ER"],
+            "obtained": ["Systemic_therapy_plan", "T", "N", "M", "prefix", "Response", "ER", "HER2", "Operable"],
+            "next_step_id":["03", "02", "04"],
+            "processes": [],
+            "next_step_criteria": {
+                "03": {
+                    "Response": "Bad response, consider alternate systemic therapy."
+                },
+                "02": {
+                    "Response": "Good response",
+                    "Operable": "True"
+                },
+                "04": {
+                    "Response": "Bad response, consider individualized treatment plan.",
+                    "Operable": "False"
+                }
+            }
+        },
+        {
+            "process_id": "04",
+            "name":"Personalized Treatment Plan",
+            "description":"Personalize the treatment plan for the patient.",
+            "required": [],
+            "obtained": [],
+            "next_step_id":["05"],
+            "processes": [],
+            "next_step_criteria": null
+        },
+        {
+            "process_id": "05",
+            "name":"Follow-up and Monitoring",
+            "description":"This process involves follow-up and monitoring after treatment.",
+            "required": [],
+            "obtained": [],
+            "next_step_id":[],
+            "processes": [],
+            "next_step_criteria": null
+        }
+    ]
+
+}
