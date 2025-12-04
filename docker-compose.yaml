@@ -13,7 +13,6 @@ services:
       - "7687:7687" # Bolt port (for client communication)
     volumes:
       - ./data/neo4j:/.data # Graph data persistence
-      - ./conf/neo4j:/.conf # Specific configuration
     environment:
       # Use NEO4J_AUTH for authentication, as it's a common and robust way for Docker images.
       # The format is USER/PASSWORD.
