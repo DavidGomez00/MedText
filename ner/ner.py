@@ -1,91 +1,135 @@
-import ollama
 import json
 import time
+import os
+import dotenv
 
-# CONFIGURACIÓN
-# Puedes cambiar a 'qwen2.5:7b' si ves que cabe en tu memoria
-MODELO = "qwen2.5:3b" 
+from typing import List, Literal
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_ollama import ChatOllama
+from pydantic import BaseModel, Field, ValidationError
 
-def procesar_ner(texto):
+# Cargar variables de entorno
+dotenv.load_dotenv()
+
+
+class ClinicalEntity(BaseModel):
+    text: str = Field(description="El texto exacto extraído de la nota clínica.")
+    label: Literal["PROBLEM", "TREATMENT", "TEST", "ANATOMY"] = Field(description="Categoría de la entidad.")
+    status: Literal["present", "absent", "possible", "conditional", "historical"] = Field(description="Estado de la afirmación.")
+    subject: Literal["patient", "family_member", "other"] = Field(description="Sujeto al que se refiere la entidad.")
+
+class ExtractionResult(BaseModel):
+    clinical_entities: List[ClinicalEntity]
+
+
+APOLO_URL = os.getenv("APOLO_URL")
+
+def ner(model_name, text):
+    """ Ejecuta NER a través de langchain y valida estrictamente 
+    la salida usando Pydantic.
     """
-    Envía texto a Ollama y retorna las entidades en formato diccionario.
-    """
+
+    # Configuración del parser
+    parser = PydanticOutputParser(pydantic_object=ExtractionResult)
     
-    # 1. Definimos el Schema que queremos (Prompt del Sistema)
-    # Le damos ejemplos claros para guiar al modelo
-    system_prompt = """
-    Eres un asistente experto en extracción de información clínica. Tu tarea es analizar notas médicas y extraer entidades clínicas en formato JSON.
-
-    Sigue estrictamente estas reglas:
-    1. Extrae entidades y clasifícalas SOLO en una de estas categorías: PROBLEM, TREATMENT, TEST, ANATOMY.
-    2. Si la entidad no encaja claramente, ignórala.
-    3. Detecta el estado de la entidad (Assertion Detection):
-    - "absent": Si está negada (ej: "no fiebre").
-    - "historical": Si ocurrió en el pasado lejano (ej: "tuvo infarto hace 10 años").
-    - "possible": Incertidumbre (ej: "posible fractura").
-    - "present": Si está ocurriendo ahora o es un hecho confirmado.
-    4. Detecta a quién se refiere (Subject):
-    - "patient": Por defecto.
-    - "family": Si se refiere a un pariente.
-
-    Salida esperada: ÚNICAMENTE un objeto JSON válido con la clave "clinical_entities".
-
-    Texto:
-    {input_text}
-    """
-
+    # Lee el prompt del archivo con el mismo nombre
     try:
-        start_time = time.time()
-        
-        # 2. Llamada a la API de Ollama
-        response = ollama.chat(
-            model=MODELO,
-            format='json',  #Fuerza la salida JSON válida
-            messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': texto},
-            ],
-            options={
-                'temperature': 0.0
-            }
-        )
-        
-        end_time = time.time()
-        
-        # 3. Procesar respuesta
-        contenido = response['message']['content']
-        
-        # Qwen suele devolver el JSON limpio, lo convertimos a dict de Python
-        entidades = json.loads(contenido) # TODO: Check JSON valido
-        
-        return {
-            "status": "success",
-            "tiempo_segundos": round(end_time - start_time, 2),
-            "modelo_usado": MODELO,
-            "data": entidades
-        }
+        with open(f"agents/prompts/{model_name}_ner.txt", "r", encoding="utf-8") as f:
+            base_prompt = f.read()
+    except FileNotFoundError as e:
+        print(f'Error en la lectura del prompt para {model_name}: {e}')
+        return {"status": "error", "mensaje": "Prompt file not found"}
+    
 
+    # Inyecto instrucciones de formato del parser al modelo
+    # format_instructions = parser.get_format_instructions()
+    # final_system_prompt = f"{base_prompt}\n\n{format_instructions}"
+    final_system_prompt = base_prompt # TODO: Cambiar más adelante
+
+    llm = ChatOllama(
+        base_url=APOLO_URL,
+        model=model_name,
+        temperature=0.0,
+        format="json",
+        num_ctx=8192, # Aumento a 8k tokens
+        keep_alive="5m",
+        num_predict=2000 # Asegura espacio para la respuesta
+    )
+
+    messages = [ 
+        SystemMessage(content=final_system_prompt),
+        HumanMessage(content=text),
+    ]
+
+    print(f"🧠 Consultando {model_name}...")
+    start_time = time.time()
+    
+    try:
+        response = llm.invoke(messages)
+        content = response.content.strip()
+
+        # Validación con Pydantic        
+        try: 
+            json_content = json.loads(content)
+            validated_data = ExtractionResult(**json_content)  # TODO: Entender esto
+        
+            status = "succes"
+            data = validated_data.model_dump() # Convierte a dict estándar
+            error_msg = None
+        
+        except (json.JSONDecodeError, ValidationError) as e:
+            status = "validation_error"
+            data = None
+            error_msg = str(e)
+            print(f"⚠️ Error de validación: {e}")
+    
     except Exception as e:
-        return {"status": "error", "mensaje": str(e)}
+        status = "api_error"
+        data = None
+        error_msg = str(e)
+        content = ""
+    
+    end_time = time.time()
+
+    return {
+        "status": status,
+        "tiempo": round(end_time - start_time, 2),
+        "data": data,
+        "error": error_msg,
+        "raw_response": content
+    }
 
 
 if __name__ == "__main__":
 
     # Ruta a un archivo de texto de ejemplo
-    nota_prueba = ".data/cantemist/dev-set1/cantemist-norm/cc_onco2.txt"
+    nota_prueba = ".data/Cantemist/dev-set1/cantemist-norm/cc_onco2.txt"
+
     # Leo el archivo de ejemplo
     with open(nota_prueba, "r", encoding="utf-8") as f:
         texto_prueba = f.read()
+
+    # Seleccionamos modelo inicial
+    model_name = "qwen2.5:7b"
     
-    print(f"🔄 Procesando con {MODELO}...")
+    print(f"Ejecución de NER para una nota cualquiera.")
     print("-" * 50)
     
-    resultado = procesar_ner(texto_prueba)
+    resultado = ner(model_name, texto_prueba)
     
     # Imprimir resultado
-    if resultado["status"] == "success":
+    if resultado["status"] == "succes":
+        print("✅ ÉXITO. Datos validados:")
         print(json.dumps(resultado["data"], indent=2, ensure_ascii=False))
-        print("-" * 50)
-        print(f"⚡ Tiempo de inferencia: {resultado['tiempo_segundos']} segundos")
+        
+        entidades = resultado["data"]["clinical_entities"]
+        problemas = [e['text'] for e in entidades if e['label'] == 'PROBLEM']
+        print(f"\nProblemas detectados: {problemas}")
+        print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
+
     else:
-        print("❌ Error:", resultado["mensaje"])
+        print(f"❌ FALLO ({resultado['status']}):")
+        print(resultado["error"])
+        print(f"Respuesta cruda del modelo: \n{resultado["raw_response"]}")
+        print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
