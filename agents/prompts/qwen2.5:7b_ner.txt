@@ -13,8 +13,15 @@ Tu objetivo es identificar entidades médicas en el texto proporcionado y estruc
 
 ### REGLAS IMPORTANTES
 - Extrae el texto LITERAL tal cual aparece en la nota.
+- Extrae SOLO lo que esté explícitamente escrito en el texto. No infieras nada.
 - Devuelve SIEMPRE un objeto con la clave "clinical_entities".
 - Si no encuentras entidades, devuelve la lista vacía.
+
+### LAS NEGACIONES SON IMPORTANTES
+Debes extraer TODAS las entidades clínicas, INCLUSO SI ESTÁN NEGADAS o AUSENTES.
+- Ejemplo: "No tiene fiebre" -> Extraer "fiebre" (status: absent).
+- Ejemplo: "Sin traumatismo" -> Extraer "traumatismo" (status: absent).
+- Ejemplo: "Niega alergias" -> Extraer "alergias" (status: absent).
 
 ### EJEMPLOS DE RAZONAMIENTO
 Entrada: "El paciente niega fiebre, pero refiere dolor en brazo izquierdo."

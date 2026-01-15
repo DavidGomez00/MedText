@@ -45,7 +45,7 @@ def ner(model_name, text):
     # Inyecto instrucciones de formato del parser al modelo
     # format_instructions = parser.get_format_instructions()
     # final_system_prompt = f"{base_prompt}\n\n{format_instructions}"
-    final_system_prompt = base_prompt # TODO: Cambiar más adelante
+    # final_system_prompt = base_prompt
 
     llm = ChatOllama(
         base_url=APOLO_URL,
@@ -54,7 +54,7 @@ def ner(model_name, text):
         format="json",
         num_ctx=8192, # Aumento a 8k tokens
         keep_alive="5m",
-        num_predict=2000 # Asegura espacio para la respuesta
+        num_predict=-1 # Asegura espacio para la respuesta
     )
 
     messages = [ 
@@ -101,35 +101,73 @@ def ner(model_name, text):
     }
 
 
-if __name__ == "__main__":
+def main():
 
-    # Ruta a un archivo de texto de ejemplo
-    nota_prueba = ".data/Cantemist/dev-set1/cantemist-norm/cc_onco2.txt"
+    # Escojo 5 notas de ejemplo
+    notas_prueba = [
+        ".data/Cantemist/dev-set1/cantemist-norm/cc_onco2.txt",
+        ".data/Cantemist/dev-set1/cantemist-norm/cc_onco46.txt",
+        ".data/Cantemist/dev-set2/cantemist-norm/cc_onco874.txt",
+        ".data/Cantemist/dev-set2/cantemist-norm/cc_onco1500.txt",
+        ".data/Cantemist/dev-set1/cantemist-norm/cc_onco76.txt"
+    ]
 
-    # Leo el archivo de ejemplo
-    with open(nota_prueba, "r", encoding="utf-8") as f:
-        texto_prueba = f.read()
 
     # Seleccionamos modelo inicial
     model_name = "qwen2.5:7b"
-    
-    print(f"Ejecución de NER para una nota cualquiera.")
-    print("-" * 50)
-    
-    resultado = ner(model_name, texto_prueba)
-    
-    # Imprimir resultado
-    if resultado["status"] == "succes":
-        print("✅ ÉXITO. Datos validados:")
-        print(json.dumps(resultado["data"], indent=2, ensure_ascii=False))
-        
-        entidades = resultado["data"]["clinical_entities"]
-        problemas = [e['text'] for e in entidades if e['label'] == 'PROBLEM']
-        print(f"\nProblemas detectados: {problemas}")
-        print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
 
-    else:
-        print(f"❌ FALLO ({resultado['status']}):")
-        print(resultado["error"])
-        print(f"Respuesta cruda del modelo: \n{resultado["raw_response"]}")
-        print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
+    times = []
+
+    if len(notas_prueba) == 0:
+        print("No hay notas que procesar.")
+        return -1
+
+    for nota in notas_prueba:
+        print(f"{nota.split("/")[-1]}")
+        print("-" * 50)
+        
+        # Leo el archivo de ejemplo
+        with open(nota, "r", encoding="utf-8") as f:
+            texto_prueba = f.read()
+
+        resultado = ner(model_name, texto_prueba)
+        times.append(resultado['tiempo'])
+        
+        # Procesar respuesta
+        if resultado["status"] == "succes":
+            print("✅ ÉXITO. Datos validados.")
+
+            # Guardar el JSON preservando estructura de carpetas.
+            # nota: .data/Cantemist/.../file.txt -> .data/ner_results/<model>/Cantemist/.../file.json
+            relative_path = os.path.relpath(nota, ".data")
+            output_dir = os.path.join(".data", "ner_results", model_name, os.path.dirname(relative_path))
+            
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            file_name = os.path.splitext(os.path.basename(nota))[0] + ".json"
+            output_path = os.path.join(output_dir, file_name)
+
+            with open(output_path, 'w', encoding="utf8") as f:
+                json.dump(resultado["data"], f, ensure_ascii=False, indent=4)
+
+            print(f'Saved: {output_path}')
+            
+            # entidades = resultado["data"]["clinical_entities"]
+            # problemas = [e['text'] for e in entidades if e['label'] == 'PROBLEM']
+            # print(f"\nProblemas detectados: {problemas}")
+            print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
+            
+
+        else:
+            print(f"❌ FALLO ({resultado['status']}):")
+            print(resultado["error"])
+            print(f"⚡ Tiempo de inferencia: {resultado['tiempo']}")
+        
+    if len(times) != 0:
+        total_time = sum(times) / len(times)
+        print(f"⚡ Tiempo de inferencia total : {round(total_time, 2)}.")
+
+
+if __name__ == "__main__":
+    main()
